@@ -1,0 +1,8 @@
+
+
+
+aws_boxgrinder contains all the stuff needed to build Mobicents appliance and SIP load balancer appliance on EC2. 
+
+You first need to start a fresh instance of BoxGrinder Build Meta appliance. See http://boxgrinder.org/download/boxgrinder-build-meta-appliance/ to get the last EC2 AMI's.
+Then clone aws_boxgrinder into that instance. You should edit the config file according to your credentials. Then you can run setup.sh. It will build mobicents packages using Cantiere, and the appliances using BoxGrinder build.
+
