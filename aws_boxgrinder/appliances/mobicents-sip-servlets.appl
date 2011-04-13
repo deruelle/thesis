@@ -1,0 +1,13 @@
+name: mobicents-sip-servlets
+summary: Mobicents SIP Servlets appliance.
+version: 1
+release: 1
+hardware:
+  memory: 1024
+  partitions:
+    "/":
+      size: 10
+appliances:
+  - mobicents-base
+packages:
+  - mobicents-sip-servlets

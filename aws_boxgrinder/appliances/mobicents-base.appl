@@ -1,0 +1,21 @@
+name: mobicents-base
+summary: Appliance template for Mobicents appliances
+os:
+  name: fedora
+  version: 14
+hardware:
+  memory: 256
+  partitions:
+    "/":
+      size: 1
+packages:
+  - @core
+  - openssh-clients
+  - which
+  - wget
+  - nano
+  - unzip
+repos:
+  - name: "local-noarch"
+    baseurl: "file:///home/ec2-user/cantiere/build/topdir/fedora/14/RPMS/noarch"
+    ephemeral: true

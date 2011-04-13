@@ -1,0 +1,270 @@
+	#!/bin/sh
+#
+# mobicents-sip-servlets             Start up the JBoss Application Server with Mobicents
+#
+# chkconfig: 2345 84 15
+# description: JBoss Application Server
+# processname: mobicents-sip-servlets
+# pidfile: /var/run/mobicents-sip-servlets.pid
+
+### BEGIN INIT INFO
+# Provides: mobicents-sip-servlets
+# Required-Start: $network $syslog
+# Required-Stop: $network
+# Default-Start:
+# Default-Stop:
+# Short-Description: Start up the JBoss Application Server
+# Description: JBoss Application Server
+### END INIT INFO
+
+# Source function library.
+. /etc/init.d/functions
+
+# Source networking configuration.
+. /etc/sysconfig/network
+
+# Check that networking is up.
+[ ${NETWORKING} = "no" ] && exit 0
+
+NAME="$(basename $0)"
+unset ISBOOT
+if [ "${NAME:0:1}" = "S" -o "${NAME:0:1}" = "K" ]; then
+    NAME="${NAME:3}"
+    ISBOOT="1"
+fi
+
+# Source configuration.
+[ -f /etc/java/java.conf ] && . /etc/java/java.conf
+
+#read in service-specific jboss configuration
+[ -f /etc/sysconfig/mobicents-load-balancer ] && . /etc/sysconfig/mobicents-load-balancer
+
+export JAVA_HOME=${JAVA_HOME:-"/usr"}
+
+#define where jboss is - this is the directory containing directories log, bin, conf etc
+JBOSS_HOME=${JBOSS_HOME:-"$MOBICENTS_HOME"}
+
+#define the script to use to start jboss
+JBOSSSH=${JBOSSSH:-"java -jar sip-balancer-jar-with-dependencies.jar -mobicents-balancer-config=lb-configuration.properties"}
+
+#define the lock file for this jboss instance
+JBOSSLOCK=/var/lock/subsys/$NAME
+
+#define the pid file for this jboss instance
+JBOSSPID=/var/run/${NAME}.pid
+
+# Set the defaults.
+LOGFILE=$JBOSS_HOME/console.log
+
+#define what will be done with the console log
+JBOSS_CONSOLE=$LOGFILE
+
+#define the timeout period for starting the server
+JBOSS_START_TIMEOUT=${JBOSS_START_TIMEOUT:-"300"}
+                                                                                
+#define the timeout period for stopping the server
+JBOSS_STOP_TIMEOUT=${JBOSS_STOP_TIMEOUT:-"180"}
+
+
+
+CMD_START="cd $JBOSS_HOME/; $JBOSSSH"
+
+
+RETVAL=0
+
+function procrunning() {
+   procid=0
+   for procid in `pidof -x "java"`; do
+      ps -fp $procid | grep "${JBOSSSH}" > /dev/null && pid=$procid
+   done
+}
+
+start() {
+    echo -n "Starting ${NAME}: "
+
+    # if lock file exists
+    if [ -f $JBOSSLOCK ]; then
+        procrunning
+        if [ ! $pid = '0' ]; then
+           failure $"${NAME} startup"
+	   echo -n "Process already running"
+	   return 2
+       fi
+    fi
+
+	touch $JBOSS_CONSOLE
+
+    echo CMD_START = $CMD_START > $LOGFILE
+
+    # start mobicents
+    eval $CMD_START >>${JBOSS_CONSOLE} 2>&1 &
+
+    sleep=0
+    RETVAL=1
+    while [ $sleep -lt $JBOSS_START_TIMEOUT -a $RETVAL -eq 1 ]; do
+        # waiting for processes to start
+        sleep 5
+        sleep=`expr $sleep + 5`
+        
+		# see if process is started
+        grep -q "Grouped failover" $JBOSS_CONSOLE > /dev/null 2>&1
+        if [ $? -eq 0 ]; then
+			touch /var/lock/subsys/${NAME}
+			RETVAL=0
+		fi
+		
+		# test if process still running
+        pid=0
+        procrunning
+        if [ $pid == '0' ]; then
+            failure $"${NAME} startup"
+            echo -n -e "\nProcess crashed on startup"
+            echo
+            RETVAL=2
+        fi
+    done
+
+    if [ -r /etc/rc.d/init.d/functions ]; then
+        if [ $RETVAL -eq 0 ]; then
+            success $"${NAME} startup"
+        else
+            # check if the process is still running
+            pid=0
+            procrunning
+            if [ ! $pid = '0' ]; then
+                echo -n -e "\n${NAME} startup has timed out, process still running. \n"
+                echo
+            else
+                failure $"${NAME} startup"
+            fi
+        fi
+    fi
+
+    echo
+    [ $RETVAL = 0 ] && touch $JBOSSLOCK
+    pid=0
+    procrunning
+    if [ ! $pid = '0' ]; then
+        echo $pid > $JBOSSPID
+    fi
+    return $RETVAL
+}
+
+stop() {
+    echo -n $"Stopping ${NAME}: "
+    pid=0
+    procrunning
+    if [ $pid = '0' ]; then
+        failure $"${NAME} shutdown"
+        echo -n -e "\nNo JBossas is currently running\n"
+        if [ -f $JBOSSLOCK ]; then 
+            rm -f $JBOSSLOCK
+        fi
+        if [ -f $JBOSSPID ]; then 
+            rm -f $JBOSSPID
+        fi
+        return 1
+    fi
+
+    pid=0
+    RETVAL=1
+    procrunning
+
+    # If process is still running
+
+    # First, try to kill it nicely
+    if [ $RETVAL != 0 ] ; then
+        kill -15 $pid
+    
+        sleep=0
+        while [ $sleep -lt $JBOSS_STOP_TIMEOUT -a $RETVAL -eq 1 ]; do
+            sleep 5
+            sleep=`expr $sleep + 5`
+            pid=0
+            procrunning
+            if [ $pid == '0' ]; then
+                RETVAL=0
+            fi
+        done
+    fi
+
+    # Still not dead... notify user
+
+    count=0
+    pid=0
+    procrunning
+
+    if [ $pid != '0' ] ; then
+        jboss_java_pid=`ps --ppid $pid | grep java | awk '{print $1}'`
+        echo -e "\nTimeout: Shutdown command was sent, but process is still running with PID $jboss_java_pid"
+        failure $"${NAME} shutdown"
+    else
+        rm -f /var/lock/subsys/${NAME}
+        if [ -r /etc/rc.d/init.d/functions ]; then
+            success $"${NAME} shutdown"
+        fi
+     fi
+
+    echo
+    [ $RETVAL -eq 0 ] && rm -f $JBOSSLOCK $JBOSSPID
+    return $RETVAL
+}
+
+status() {
+    pid=0
+    procrunning
+    if [ $pid == 0 ]; then
+        if [ -f $JBOSSLOCK ]; then
+            echo "${NAME} is dead but subsys locked";
+            return 2
+        fi
+        if [ -f $JBOSSPID ]; then
+            echo "${NAME} is dead but pid file exists";
+            return 3
+        fi
+        echo "${NAME} is stopped";
+        return 0
+    else
+        echo "${NAME} (pid $pid) is running...";
+        return 0
+    fi
+}
+                                                                                
+# Restart only if process is already running
+condrestart() {
+	pid=0
+	procrunning
+	if [ $pid != 0 ]; then
+	   stop
+	   sleep 3
+	   start
+	fi
+}
+
+case "$1" in
+start)
+    start
+    ;;
+stop)
+    stop
+    ;;
+restart|reload)
+    stop
+    sleep 3
+    start
+    ;;
+condrestart)
+    condrestart
+    ;;
+status)
+    status
+    ;;
+help)
+    echo "usage: ${NAME} (start|stop|status|restart|help)"
+    ;;
+*)
+    echo "usage: ${NAME} (start|stop|status|restart|help)"
+    exit 1
+esac
+
+exit $RETVAL

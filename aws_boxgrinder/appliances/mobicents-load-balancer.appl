@@ -1,0 +1,13 @@
+name: mobicents-load-balancer
+summary: Mobicents load balancer appliance.
+version: 1
+release: 1
+hardware:
+  memory: 512
+  partitions:
+    "/":
+      size: 5
+appliances:
+  - mobicents-base
+packages:
+  - mobicents-load-balancer

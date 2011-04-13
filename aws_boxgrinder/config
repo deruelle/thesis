@@ -1,0 +1,17 @@
+plugins:
+  s3:
+    access_key: AWS_ACCESS_KEY                        # (required)
+    secret_access_key: AWS_SECRET_ACCESS_KEY          # (required)
+    bucket: stormgrind-test                           # (required)
+    account_number: 0000-0000-0000                    # (required)
+    path: /images                                     # default: /
+    cert_file: /home/a/cert-ABCD.pem                  # required only for ami type
+    key_file: /home/a/pk-ABCD.pem                     # required only for ami type
+    host: http://host:8773/services/Walrus            # default: http://s3.amazonaws.com; host used to upload AMI
+
+  ebs:
+    access_key: AWS_ACCESS_KEY                        # required
+    secret_access_key: AWS_SECRET_ACCESS_KEY          # required
+    account_number: AWS_ACCOUNT_NUMBER                # required
+    availability_zone: us-east-1b                     # default: current region
+    delete_on_termination: false                      # default: true
