@@ -93,6 +93,11 @@ start() {
     fi
 
 	touch $JBOSS_CONSOLE
+	
+    # set the ip for the LB
+    IP_ADDRESS=`ip addr list eth0 | grep "inet " | cut -d' ' -f6 | cut -d/ -f1`
+    LB_CONF=`sed 's/^host=.*/host='$IP_ADDRESS'/' $JBOSS_HOME/lb-configuration.properties`
+    echo -e "$LB_CONF" > $JBOSS_HOME/lb-configuration.properties
 
     echo CMD_START = $CMD_START > $LOGFILE
 
